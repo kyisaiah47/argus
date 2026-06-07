@@ -1,0 +1,16 @@
+.venv/
+.venv312/
+__pycache__/
+*.pyc
+*.pyo
+audit/reports/
+audit/*.jsonl
+*.plaso
+.env
+cases/sample/*.e01
+cases/sample/*.raw
+cases/sample/*.zip
+cases/sample/*.7z
+cases/sample/*.pptx
+cases/sample/Rocba-Memory/
+regripper_src/
