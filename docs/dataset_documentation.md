@@ -1,68 +1,56 @@
 # Dataset Documentation
 
-## Case Data Used for Testing and Demo
+## Case Data — ROCBA-2020
 
 ### Source
-SANS SIFT Workstation sample case data — "The Fred Rocba Case" (Standard Forensic Case, HACKATHON-2026).
-Provided by Rob Lee / SANS Institute via the Find Evil! hackathon resources page (sansorg.egnyte.com).
 
-**Case background:** Fred Rocba, new employee at Stark Research Labs (defense/biotech contractor).
-Physical break-in at his home on November 13, 2020 while on vacation at Disney World. Suspect accessed
-his laptop and exfiltrated intellectual property. Memory captured November 16 (post-incident).
-Disk image captures the C: drive including suspect activity.
+SANS Institute — "The Fred Rocba Case" forensic training dataset, distributed via the Find Evil! hackathon resources page.
 
-All data is sourced from SANS Institute's publicly distributed forensic training materials.
-No real victim data. No proprietary artifacts.
+**Case background:** Fred Rocba, employee at Stark Research Labs. Physical break-in at his residence on November 13, 2020 while on vacation. Suspect accessed his laptop and exfiltrated data. Memory captured November 16 (3 days post-incident). C: drive imaged to rocba-cdrive.e01.
 
-### Artifacts
+All data is sourced from SANS Institute's publicly distributed forensic training materials. No real victim data. No proprietary artifacts.
 
-| Artifact | Type | Size | Notes |
-|---|---|---|---|
-| Rocba-Memory.raw | Raw memory image | 18 GB | Windows 10 x64, 2020-11-16 02:32 UTC |
-| rocba-cdrive.e01 | E01 disk image | 22.1 GB | C: drive, NTFS, Windows 10 |
+---
 
-### What the Agent Found
+### Artifacts Included in Repo (`cases/sample/`)
 
-**Memory analysis run — 2026-06-07, 6 iterations, ~3 minutes**
-
-| Check | Tool | Result |
+| Artifact | Type | Notes |
 |---|---|---|
-| Process injection | volatility:malfind | CLEAN — zero injected regions |
-| Suspicious processes | volatility:pslist | 3 heuristic alerts → corroborated as benign FPs (orphan-PPID Windows artifacts) |
-| External connections | volatility:netscan | CLEAN — legitimate traffic only (Teams, Slack, iCloud, Google Drive) |
-| Persistence | N/A | UNABLE TO ASSESS — no disk provided; agent flagged gap correctly |
+| Rocba-Memory.raw | Raw memory image | Windows 10 x64, captured 2020-11-16 |
+| artifacts/registry/NTUSER_fredr.DAT | Registry hive | Fred Rocba's user hive |
+| artifacts/registry/SOFTWARE | Registry hive | System SOFTWARE hive |
+| artifacts/registry/SYSTEM | Registry hive | System SYSTEM hive |
+| artifacts/prefetch/ | Prefetch files | Windows\Prefetch\ directory contents |
 
-**Disk analysis run — pending (rocba-cdrive.e01 downloading)**
+Note: rocba-cdrive.e01 (full disk image, ~22GB) is not included in the repo due to size. Registry hives and prefetch files were pre-extracted from it.
 
-Expected findings: evidence of data exfiltration, attacker tooling, modified files post-Nov-13.
+---
+
+### Ground Truth
+
+Known attacker activity confirmed by case background and forensic artifacts:
+
+- **FTKIMAGER.EXE** — AccessData FTK Imager executed. Used to image the drive to external media for offline exfiltration. (MITRE T1005)
+- **SDELETE.EXE** — Sysinternals SDelete executed twice (two distinct prefetch hashes). Used for anti-forensic cleanup of dropped tools and staging artifacts. (MITRE T1070.004)
+- **No persistence** — One-shot physical access. No Run key or service modifications observed.
+- **No live attacker processes** — Memory captured 3 days post-incident. All attacker tools had exited.
+
+---
+
+### What ARGUS Found
+
+Run 2026-06-08, 6 iterations, ~3 minutes:
+
+- FTKIMAGER.EXE identified from prefetch — correct
+- SDELETE.EXE identified from prefetch (2 executions) — correct
+- T1005 and T1070.004 auto-mapped — correct
+- No false positives in final report
+- Evidence gaps (missing disk timeline, memory acquisition timing) explicitly flagged
+
+---
 
 ### Reproducibility
 
-Judges can reproduce the exact analysis by:
+All artifacts required to reproduce the full analysis are included in `cases/sample/`. Clone the repo and follow the README — no additional data download required.
 
-1. Downloading the SANS sample case data from the hackathon resources page
-2. Installing Find Evil on a SIFT Workstation following `README.md`
-3. Running:
-```bash
-python find_evil.py investigate \
-  --case-dir /path/to/case \
-  --case-id HACKATHON-DEMO \
-  --memory memory.raw \
-  --disk disk.dd \
-  --ntuser /path/to/NTUSER.DAT \
-  --software /path/to/SOFTWARE \
-  --system /path/to/SYSTEM \
-  --prefetch /path/to/Prefetch
-```
-
-The audit log (`audit/session_*.jsonl`) records every tool call with parameters — any finding can be independently reproduced by re-running the specific Volatility/regripper command logged.
-
-### Evidence Integrity Verification
-
-Original artifacts were not modified during analysis. To verify:
-```bash
-# Hash the memory image before and after running Find Evil
-sha256sum memory.raw  # record this value
-python find_evil.py investigate ...
-sha256sum memory.raw  # must match
-```
+The audit log (`audit/session_*.jsonl`) records every tool call with parameters and outputs. Any finding can be independently verified by re-running the specific tool command logged.

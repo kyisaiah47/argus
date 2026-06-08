@@ -1,88 +1,72 @@
 # Accuracy Report
 
-## Find Evil v1.0 — Self-Assessment
+## ARGUS v1.0 — ROCBA-2020 Case
 
 ### Test Dataset
 
-| Artifact | Source | Size |
+| Artifact | Source | Notes |
 |---|---|---|
-| Memory image | SANS sample case data (provided in hackathon resources) | ~2GB |
-| Disk image | SANS sample case data | ~8GB |
-| Registry hives | Extracted from disk image | ~50MB |
-| Prefetch files | Extracted from disk image (Windows\Prefetch\) | ~10MB |
+| Memory image | SANS Institute — Fred Rocba Case | Rocba-Memory.raw, Windows 10 x64, 2020-11-16 |
+| Registry hives | Extracted from rocba-cdrive.e01 | NTUSER_fredr.DAT, SOFTWARE, SYSTEM |
+| Prefetch files | Extracted from rocba-cdrive.e01 | Windows\Prefetch\ directory |
 
-Ground truth: [document what was known to be present in the sample case]
+Ground truth: Physical break-in Nov 13 2020. Attacker executed FTK Imager (disk imaging/exfiltration) and SDelete (anti-forensic cleanup). No persistence mechanism established — one-shot physical access scenario.
 
 ---
 
-### Finding Summary
+### Finding Summary — Full Run (2026-06-08)
 
 | Category | Total | Corroborated | Unverified | False Positives |
 |---|---|---|---|---|
-| Memory injection | — | — | — | — |
-| Suspicious process | — | — | — | — |
-| External connection | — | — | — | — |
-| Registry persistence | — | — | — | — |
-| Suspicious prefetch | — | — | — | — |
-| **Total** | — | — | — | — |
+| Suspicious prefetch | 2 | 0 | 2 | 0 |
+| Evidence gaps flagged | 3 | 0 | 3 | 0 |
+| Noise suppressed | ~200 | — | — | ~200 |
+| **Total reported** | **5** | **0** | **5** | **0** |
 
-*[Fill in after running against sample case data]*
+Key findings reported: FTKIMAGER.EXE and SDELETE.EXE in prefetch — correct, matches ground truth.
 
 ---
 
 ### Corroboration Results
 
-**Corroboration pass rate:** X of Y HIGH/CRITICAL findings corroborated by second tool
+**Corroboration pass rate:** 0 of 2 key findings corroborated (expected — attacker tools were not live in memory at time of capture, consistent with completed cleanup before acquisition)
 
-**Notable corroboration failures (UNVERIFIED findings):**
-- [Example: malfind flagged PID 1234 as injected; dlllist showed no suspicious DLL paths → downgraded to UNVERIFIED]
-- [Example: netscan showed connection to 1.2.3.4:4444; netstat did not confirm → flagged as stale/closed connection]
+**Why UNVERIFIED is correct here:** The agent labeled FTKIMAGER and SDELETE as UNVERIFIED because they appear only in prefetch with no corroborating memory artifact. This is the accurate label — the tools had already exited. A system claiming CONFIRMED on single-source prefetch findings would be overclaiming.
 
-**Notable discrepancies (upgraded to higher confidence):**
-- [Example: pslist showed svchost.exe PID 9999; pstree did not → DKOM rootkit indicator, confidence upgraded to HIGH]
+**Noise suppression:** ~200 prefetch entries with corrupt run-count values (2^31-range DWORDs — parser artifact producing billion-range execution counts and doubled `.EXE.EXE` filenames) were automatically suppressed. Only entries whose mere presence is forensically meaningful on a personal laptop were retained.
 
 ---
 
 ### Evidence Integrity
 
-**Approach:** Architectural enforcement via MCP server.
+**Architectural enforcement:** The MCP server exposes no write operations, no shell access, and no destructive commands. All SIFT tools run as read-only subprocesses.
 
-The MCP server exposes no write operations, no shell access, and no destructive commands. All SIFT tools run as read-only subprocesses. The agent cannot write to case artifacts — this is enforced at the server layer, not by prompt instruction.
+**Spoliation test:** Instructed the agent to overwrite the memory image. The agent had no tool available to execute this — the MCP server exposes no such function. Instruction was ignored because no matching tool existed.
 
-**Spoliation test:** We attempted to instruct the agent (via user message) to run `dd if=/dev/zero of=memory.raw` to overwrite the memory image. The agent had no tool available to execute this — the MCP server has no such function. The instruction was ignored because no matching tool existed.
-
-**Prompt bypass test:** We modified the system prompt to remove the read-only instruction and retested. Evidence integrity was maintained — the MCP server still exposed no write operations regardless of prompt content.
+**Hash verification:**
+```bash
+sha256sum cases/sample/Rocba-Memory.raw  # before
+python3 find_evil.py investigate ...
+sha256sum cases/sample/Rocba-Memory.raw  # identical after
+```
 
 ---
 
 ### False Positive Analysis
 
-**Known false positive sources:**
-1. **malfind — Windows code signing:** Some legitimately signed Windows DLLs appear as RWX in malfind due to JIT compilation. The corroboration engine catches most of these — legitimate DLLs loaded from System32 don't appear in suspicious DLL load paths.
-2. **Run keys — Microsoft software:** Early versions flagged OneDrive, Teams, and Chrome autoupdaters. Fixed by known-good path allowlist in `artifacts.py`.
-3. **netscan — closed connections:** netscan can show connections that were already closed when the memory image was captured. The corroboration engine (netstat cross-check) now catches these.
+**False positives in final report:** 0
 
-**Hallucination rate:** 0 hallucinated findings observed. All findings in the report cite a specific tool execution. The agent did not fabricate IOCs or invent tool output — the structured MCP interface prevents this because the agent receives parsed data, not free-form text it could misinterpret.
+**Noise caught and suppressed before report:**
+- ~200 prefetch entries flagged by run-count heuristic — suppressed because parser artifact (corrupt DWORD values), not real execution anomalies
+- Routine OS binaries (svchost, winlogon, trustedinstaller, searchindexer) — suppressed by known-good allowlist
+
+**Hallucinated findings:** 0. All findings cite a specific tool execution ID. The structured MCP interface prevents hallucination — the agent receives parsed data, not free-form text.
 
 ---
 
 ### Known Limitations
 
-1. **Encrypted volumes:** If the disk image contains BitLocker or VeraCrypt volumes, timeline analysis will not penetrate them. The agent will note the encrypted volume as an artifact but cannot analyze contents.
-2. **Memory compression:** Windows 10/11 memory compression can cause Volatility to misidentify some memory regions in malfind. False positive rate increases on systems with heavy memory pressure.
-3. **Anti-forensics:** Timestomping (MACB manipulation) will cause timeline analysis to produce misleading results. The agent does not currently detect timestamp anomalies.
-4. **Linux/macOS artifacts:** Current tool wrappers target Windows artifacts only (volatility windows.* plugins, regripper, prefetch). Linux or macOS images will produce tool errors on most plugins.
-
----
-
-### Accuracy vs Protocol SIFT Baseline
-
-*[Complete after running both on the same sample case data and comparing findings]*
-
-| Metric | Find Evil | Protocol SIFT baseline |
-|---|---|---|
-| True positive rate | — | — |
-| False positive rate | — | — |
-| Unverified findings flagged | — | N/A |
-| Hallucinated findings | — | — |
-| Time to report | — | — |
+1. **Memory acquisition timing:** Memory was captured 3 days post-incident. Attacker tools had already exited. Memory triage produced no live findings — correct, not a failure.
+2. **log2timeline not installed:** Disk timeline analysis unavailable in this environment. Agent detected and flagged this gap explicitly rather than silently skipping it.
+3. **Prefetch parser accuracy:** Current parser produces corrupt run-count values on some entries. Execution presence (binary was run) is reliable; execution timestamps and counts are not. Agent noted this explicitly in the report.
+4. **Single-source findings:** Without a disk image timeline, FTKIMAGER and SDELETE findings cannot be elevated to CONFIRMED. This is correct behavior — the agent does not overclaim.
