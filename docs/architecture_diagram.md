@@ -4,7 +4,7 @@
 
 ```
 ╔══════════════════════════════════════════════════════════════════════════╗
-║                         FIND EVIL ARCHITECTURE                          ║
+║                           ARGUS ARCHITECTURE                            ║
 ╚══════════════════════════════════════════════════════════════════════════╝
 
   ┌─────────────────────────────────────────────────┐
@@ -17,7 +17,7 @@
                          │ CLI invocation
                          ▼
   ┌─────────────────────────────────────────────────┐   ┌─────────────────┐
-  │            FIND EVIL AGENT LOOP                  │   │  AUDIT SYSTEM   │
+  │               ARGUS AGENT LOOP                   │   │  AUDIT SYSTEM   │
   │           agent/loop.py                          │   │                 │
   │                                                  │◄──│ session.jsonl   │
   │  • Claude Opus (claude-opus-4-7)                 │   │ iterations.jsonl│
@@ -34,7 +34,7 @@
                          │ No raw shell. No file writes.
                          ▼
   ╔═════════════════════════════════════════════════╗
-  ║           FIND EVIL MCP SERVER                  ║
+  ║              ARGUS MCP SERVER                   ║
   ║           mcp_server/server.py                  ║
   ║                                                 ║
   ║  ┌─────────────────────────────────────────┐   ║
