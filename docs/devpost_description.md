@@ -1,69 +1,118 @@
-# Devpost Submission — ARGUS
-# Copy-paste each section into the Devpost project form
+# ARGUS
+
+**Hackathon:** Find Evil! — SANS SIFT Workstation Track
+
+**Repo:** [github.com/kyisaiah47/find-evil](https://github.com/kyisaiah47/find-evil)
 
 ---
 
-## What it does
+## Inspiration
 
-ARGUS is an autonomous DFIR agent that investigates disk images and memory captures on the SANS SIFT Workstation. Given a case directory, it runs the full investigation — memory triage, persistence analysis, disk timeline, cross-source correlation, and severity scoring — without human intervention, producing a structured incident report with every finding traceable to the specific tool execution that produced it.
-
-The core differentiator: after every HIGH or CRITICAL finding, the agent automatically attempts corroboration via a second independent tool before labeling anything CONFIRMED. If corroboration fails, the finding is labeled UNVERIFIED in the final report. This directly addresses Protocol SIFT's stated hallucination problem — the agent catches its own mistakes before writing the report.
+Digital forensics investigations follow the same sequence every time: triage memory, check persistence, correlate artifacts, write the report. A senior analyst does it from muscle memory. Junior analysts miss steps or jump to conclusions. I wanted to encode that senior-analyst methodology into an autonomous agent — one that not only follows the right sequence but actively tries to disprove its own findings before reporting them.
 
 ---
 
-## How we built it
+## What It Does
 
-**Architecture: Custom MCP Server**
+Given a case directory, ARGUS runs the full DFIR investigation without human intervention:
 
-The agent connects to a purpose-built MCP server that exposes typed, read-only functions instead of raw shell access. The server wraps key SIFT Workstation tools:
+- **Memory Triage** — Volatility 3 running pslist, netscan, and malfind simultaneously, parsed into structured findings before the model ever sees them
+- **Persistence Analysis** — regripper across Run keys, shimcache, and prefetch to identify attacker footholds
+- **Disk Timeline** — log2timeline anchored to suspicious timestamps from memory triage
+- **Corroboration Engine** — after every HIGH or CRITICAL finding, a second independent tool runs automatically. Findings that survive are labeled CONFIRMED. Findings that don't are labeled UNVERIFIED, never silently promoted
+- **Severity Scoring** — MITRE ATT&CK auto-mapped, risk level calculated across all findings
+- **Structured Incident Report** — every claim traceable to the specific tool call that produced it, written to disk as `.txt` and `.json`
 
-- `analyze_memory()` — Volatility 3: pslist, netscan, malfind in one structured call
-- `analyze_disk_timeline()` — log2timeline + psort, returns structured events (no raw text dumps)
-- `analyze_persistence()` — regripper (Run keys, shimcache) + prefetch parser
-- `correlate_findings()` — cross-references memory and disk IOCs, flags discrepancies
-- `score_severity()` — risk scoring with MITRE ATT&CK mapping
-- `generate_incident_report()` — writes structured .txt + .json report to disk
-
-**Evidence integrity by architecture, not by prompt.** The MCP server exposes no shell access, no file write tools, and no destructive commands. The agent physically cannot spoliate evidence — this constraint is enforced at the server layer.
-
-**The corroboration engine** (`agent/corroborate.py`) runs after every HIGH/CRITICAL finding. For process injection, it cross-checks with `windows.dlllist` for suspicious DLL load paths. For suspicious processes, it runs `windows.pstree` — a discrepancy between pslist and pstree is itself a high-confidence rootkit indicator (DKOM). For external connections, it independently confirms via `windows.netstat`.
-
-**The agent loop** uses Claude Opus via the Anthropic API with a 12-iteration cap. The system prompt encodes a senior analyst's investigation sequence: volatile memory first, persistence second, corroborate before concluding, disk timeline anchored to suspicious timestamps from memory. The agent logs every tool call with timestamps and token usage to a JSONL audit file.
-
-**Stack:** Python 3.10+, Anthropic SDK, MCP Python SDK (FastMCP), Pydantic v2, Volatility 3, log2timeline, regripper.
+On the ROCBA-2020 case: ARGUS identified FTK Imager and SDelete execution from prefetch, mapped the attack to T1005 and T1070.004, and produced 8 concrete recommended actions — including acquiring USBSTOR registry keys to identify the physical exfiltration device.
 
 ---
 
-## Challenges we ran into
+## How I Built It
 
-**Context window management.** Volatility output can be tens of thousands of lines. Passing raw tool output to the LLM would overflow the context window and degrade analysis quality. The MCP server solves this by parsing every tool output before returning it — the agent receives structured JSON with `suspicious: bool` flags and pre-extracted IOCs, not raw text.
+### Architecture
 
-**False positive rate.** Early versions flagged nearly every Run key as suspicious. We built a known-good path allowlist (Program Files, Windows\System32, OneDrive, Chrome) and only flag entries with both suspicious path patterns AND no known-good indicators. The corroboration step further filters findings before they reach the report.
+```
+ANALYST / OPERATOR
+  python find_evil.py investigate --case-dir ... --memory ...
+            │
+            ▼
+  ARGUS AGENT LOOP (agent/loop.py)
+  Claude Opus via Anthropic API
+  12-iteration hard cap
+  Corroboration engine after every HIGH/CRITICAL finding
+            │  MCP protocol — typed function calls only
+            │  No raw shell. No file writes.
+            ▼
+  ARGUS MCP SERVER (mcp_server/server.py)
+  ┌─────────────────────────────────────┐
+  │  SECURITY BOUNDARY (ARCHITECTURAL) │
+  │  No execute_shell_cmd()            │
+  │  No write_file()                   │
+  │  No delete_file()                  │
+  └─────────────────────────────────────┘
+  analyze_memory()           → Volatility 3
+  analyze_disk_timeline()    → log2timeline + psort
+  analyze_persistence()      → regripper + prefetch
+  correlate_findings()       → cross-source discrepancy engine
+  score_severity()           → MITRE ATT&CK + risk score
+  generate_incident_report() → .txt + .json to disk
+            │  subprocess (read-only)
+            ▼
+  SANS SIFT WORKSTATION TOOLS
+  Volatility 3 / log2timeline / regripper / fls
+            │
+            ▼
+  CASE ARTIFACTS (never written to)
+  memory.raw  disk.dd  NTUSER.DAT  SOFTWARE  SYSTEM  Prefetch\
+```
 
-**Corroboration strategy per finding type.** There's no universal "second check" — what corroborates a memory injection is different from what corroborates a network connection. We mapped each finding category to a specific second tool with a specific interpretation of that tool's output. A pslist/pstree discrepancy is not a failed corroboration — it's a higher-confidence finding (DKOM rootkit indicator).
+Claude doesn't run a fixed script. It reads the case context, decides which artifacts to examine first, adjusts based on what each tool returns, and only writes the report when it has exhausted the available evidence — exactly like a trained analyst would.
 
-**Termination conditions.** Without a hard stop, agent loops drift into redundant tool calls. We cap at 12 iterations and instruct the agent to emit `ANALYSIS_COMPLETE` when done. Iteration traces in `audit/iterations.jsonl` show the agent's approach changing across iterations.
+### Tech Stack
+
+| Layer | Technology |
+|---|---|
+| AI Model | Claude Opus (Anthropic API) |
+| Agent Framework | Anthropic Tool Use API (agentic loop) |
+| Forensics Integration | Custom MCP Server (FastMCP) |
+| Backend | Python 3.10+, Pydantic v2 |
+| Memory Analysis | Volatility 3 |
+| Disk Timeline | log2timeline + psort |
+| Registry/Prefetch | regripper + custom prefetch parser |
+| Platform | SANS SIFT Workstation |
 
 ---
 
-## What we learned
+## Challenges
 
-The most important design decision was choosing architectural guardrails over prompt-based restrictions. When we prototyped with raw shell access, the agent would occasionally run `grep -r` across the entire filesystem and overflow both the context window and the analysis timeline. Typed MCP functions with pre-parsed output made the agent faster, more accurate, and genuinely incapable of breaking evidence.
+**Context window management.** Volatility output can be tens of thousands of lines. Passing raw output to the model would overflow the context window and degrade analysis quality. The MCP server parses every tool output before returning it — the agent receives structured JSON with `suspicious: bool` flags and pre-extracted IOCs, not raw text dumps.
 
-We also learned that the corroboration engine is most valuable not when it confirms a finding, but when it disagrees. A process present in `windows.pslist` but absent from `windows.pstree` is a more important finding than either tool would produce alone — it's a direct indicator of Direct Kernel Object Manipulation, used by rootkits to hide processes. The agent discovering that discrepancy and labeling it explicitly is the kind of senior-analyst reasoning Protocol SIFT's current baseline doesn't do.
+**False positive rate.** Early versions flagged nearly every Run key as suspicious. Built a known-good path allowlist covering Program Files, Windows\System32, OneDrive, and Chrome — only flagging entries with suspicious path patterns AND no known-good indicators. The corroboration step filters further before anything reaches the report.
 
----
+**Corroboration strategy per finding type.** There's no universal second check — what corroborates a memory injection is different from what corroborates a network connection. Mapped each finding category to a specific second tool. A pslist/pstree discrepancy is not a failed corroboration — it's a higher-confidence finding, a direct indicator of DKOM rootkit behavior.
 
-## What's next
-
-- **NSRL integration:** Cross-reference file hashes against the National Software Reference Library to eliminate known-good binaries from findings automatically.
-- **YARA scanning:** Add a `scan_yara(memory_image, rules_dir)` MCP tool for signature-based detection alongside behavioral analysis.
-- **Live endpoint support:** MCP server extension for remote endpoint triage via WinRM/SSH instead of offline images.
-- **Accuracy benchmarking framework:** Run ARGUS against the CFReDS Project's known-answer datasets to produce objective false positive and false negative rates for community comparison.
-- **Multi-case correlation:** Track IOCs across cases to identify attacker infrastructure reuse.
+**Termination conditions.** Without a hard stop, agent loops drift into redundant tool calls. Capped at 12 iterations with an `ANALYSIS_COMPLETE` signal. Every iteration is logged to `audit/iterations.jsonl` so the agent's reasoning is fully traceable.
 
 ---
 
-## Built With
+## What I Learned
 
-`python` `anthropic-api` `mcp` `pydantic` `volatility3` `log2timeline` `regripper` `sans-sift-workstation` `digital-forensics` `incident-response` `dfir`
+The most important design decision was architectural guardrails over prompt-based restrictions. When I prototyped with raw shell access, the agent would run `grep -r` across the entire filesystem and overflow both the context window and the timeline. Typed MCP functions with pre-parsed output made ARGUS faster, more accurate, and genuinely incapable of breaking evidence.
+
+The corroboration engine is most valuable not when it confirms a finding, but when it disagrees. A process in `windows.pslist` that's absent from `windows.pstree` is a more important finding than either tool produces alone — it's a direct indicator of Direct Kernel Object Manipulation used by rootkits to hide processes. That kind of discrepancy-as-signal is the senior-analyst reasoning the baseline doesn't do.
+
+---
+
+## What's Next
+
+- **NSRL integration** — cross-reference file hashes against the National Software Reference Library to eliminate known-good binaries automatically
+- **YARA scanning** — add a `scan_yara(memory_image, rules_dir)` MCP tool for signature-based detection alongside behavioral analysis
+- **Live endpoint support** — MCP server extension for remote triage via WinRM/SSH instead of offline images
+- **Accuracy benchmarking** — run ARGUS against CFReDS Project known-answer datasets for objective FP/FN rates
+- **Multi-case correlation** — track IOCs across cases to identify attacker infrastructure reuse
+
+---
+
+## Team
+
+Built solo by **@kyisaiah47** for the Find Evil! Hackathon.
