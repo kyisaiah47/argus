@@ -1,7 +1,7 @@
-# Find Evil — Claude Code Integration
+# ARGUS — Claude Code Integration
 
 ## What This Is
-Find Evil connects Claude Code to SIFT Workstation forensics tools via MCP.
+ARGUS connects Claude Code to SIFT Workstation forensics tools via MCP.
 All tools are READ-ONLY. You cannot modify case evidence.
 
 ## Available MCP Tools

@@ -1,11 +1,11 @@
-# Devpost Submission — Find Evil!
+# Devpost Submission — ARGUS
 # Copy-paste each section into the Devpost project form
 
 ---
 
 ## What it does
 
-Find Evil is an autonomous DFIR agent that investigates disk images and memory captures on the SANS SIFT Workstation. Given a case directory, it runs the full investigation — memory triage, persistence analysis, disk timeline, cross-source correlation, and severity scoring — without human intervention, producing a structured incident report with every finding traceable to the specific tool execution that produced it.
+ARGUS is an autonomous DFIR agent that investigates disk images and memory captures on the SANS SIFT Workstation. Given a case directory, it runs the full investigation — memory triage, persistence analysis, disk timeline, cross-source correlation, and severity scoring — without human intervention, producing a structured incident report with every finding traceable to the specific tool execution that produced it.
 
 The core differentiator: after every HIGH or CRITICAL finding, the agent automatically attempts corroboration via a second independent tool before labeling anything CONFIRMED. If corroboration fails, the finding is labeled UNVERIFIED in the final report. This directly addresses Protocol SIFT's stated hallucination problem — the agent catches its own mistakes before writing the report.
 
@@ -59,7 +59,7 @@ We also learned that the corroboration engine is most valuable not when it confi
 - **NSRL integration:** Cross-reference file hashes against the National Software Reference Library to eliminate known-good binaries from findings automatically.
 - **YARA scanning:** Add a `scan_yara(memory_image, rules_dir)` MCP tool for signature-based detection alongside behavioral analysis.
 - **Live endpoint support:** MCP server extension for remote endpoint triage via WinRM/SSH instead of offline images.
-- **Accuracy benchmarking framework:** Run Find Evil against the CFReDS Project's known-answer datasets to produce objective false positive and false negative rates for community comparison.
+- **Accuracy benchmarking framework:** Run ARGUS against the CFReDS Project's known-answer datasets to produce objective false positive and false negative rates for community comparison.
 - **Multi-case correlation:** Track IOCs across cases to identify attacker infrastructure reuse.
 
 ---

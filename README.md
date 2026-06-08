@@ -1,14 +1,14 @@
-# Find Evil
+# ARGUS
 
 **Autonomous DFIR agent on the SANS SIFT Workstation — built for the Find Evil! hackathon.**
 
-Find Evil connects Claude Opus to SIFT's 200+ forensics tools through a purpose-built MCP server with typed, read-only functions. The agent investigates disk images and memory captures, corroborates every HIGH/CRITICAL finding with a second independent tool, and produces a structured incident report with full audit trail.
+ARGUS connects Claude Opus to SIFT's 200+ forensics tools through a purpose-built MCP server with typed, read-only functions. The agent investigates disk images and memory captures, corroborates every HIGH/CRITICAL finding with a second independent tool, and produces a structured incident report with full audit trail.
 
 ## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    Find Evil Agent                          │
+│                       ARGUS Agent                           │
 │              (Claude Opus via Anthropic API)                │
 │                                                             │
 │  System prompt: senior analyst methodology                  │
@@ -19,7 +19,7 @@ Find Evil connects Claude Opus to SIFT's 200+ forensics tools through a purpose-
                        │ NO raw shell access
                        ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                  Find Evil MCP Server                       │
+│                    ARGUS MCP Server                         │
 │           (read-only, typed tool wrappers)                  │
 │                                                             │
 │  analyze_memory()        → Volatility 3                     │
@@ -101,7 +101,7 @@ claude mcp add find-evil -- $(pwd)/.venv/bin/python $(pwd)/find_evil.py mcp-serv
 claude
 ```
 
-Claude Code will have access to all Find Evil tools and will follow the investigation methodology in `CLAUDE.md`.
+Claude Code will have access to all ARGUS tools and will follow the investigation methodology in `CLAUDE.md`.
 
 ## Output
 
