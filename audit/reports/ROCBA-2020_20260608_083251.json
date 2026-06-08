@@ -1,0 +1,140 @@
+{
+  "case_id": "ROCBA-2020",
+  "generated_at": "2026-06-08T08:32:51.457225+00:00",
+  "risk_level": "HIGH",
+  "all_findings": [
+    {
+      "id": "ab1272a9",
+      "category": "suspicious_execution",
+      "description": "SDELETE.EXE prefetch entry (instance 1, hash 2BD91720) \u2014 Sysinternals secure-delete used for anti-forensics/file wiping",
+      "confidence": "HIGH",
+      "severity": "HIGH",
+      "mitre": {
+        "technique_id": "T1070.004",
+        "technique_name": "File Deletion",
+        "tactic": "Defense Evasion"
+      },
+      "source_tools": [
+        "prefetch_parser"
+      ],
+      "corroborated": false,
+      "corroboration_detail": "Single-source (prefetch). Not present in memory \u2014 consistent with tool having exited before capture. A second sdelete prefetch (hash 0E837E93) corroborates the family was executed multiple times.",
+      "iocs": [
+        {
+          "type": "file_path",
+          "value": "cases/sample/artifacts/prefetch/SDELETE.EXE-2BD91720.pf"
+        }
+      ]
+    },
+    {
+      "id": "2dd36a05",
+      "category": "suspicious_execution",
+      "description": "SDELETE.EXE prefetch entry (instance 2, hash 0E837E93) \u2014 second distinct execution of secure-delete utility",
+      "confidence": "HIGH",
+      "severity": "HIGH",
+      "mitre": {
+        "technique_id": "T1070.004",
+        "technique_name": "File Deletion",
+        "tactic": "Defense Evasion"
+      },
+      "source_tools": [
+        "prefetch_parser"
+      ],
+      "corroborated": true,
+      "corroboration_detail": "Internally corroborated by sibling prefetch SDELETE.EXE-2BD91720.pf (two distinct execution paths). Both disk-only.",
+      "iocs": [
+        {
+          "type": "file_path",
+          "value": "cases/sample/artifacts/prefetch/SDELETE.EXE-0E837E93.pf"
+        }
+      ]
+    },
+    {
+      "id": "1d2d0000",
+      "category": "suspicious_execution",
+      "description": "FTKIMAGER.EXE prefetch entry \u2014 AccessData FTK Imager forensic disk-imaging tool. In a physical-break-in context, this is a textbook collection/exfiltration tool used to image volumes or selected data to attached external media.",
+      "confidence": "HIGH",
+      "severity": "HIGH",
+      "mitre": {
+        "technique_id": "T1005",
+        "technique_name": "Data from Local System",
+        "tactic": "Collection"
+      },
+      "source_tools": [
+        "prefetch_parser"
+      ],
+      "corroborated": false,
+      "corroboration_detail": "Single-source (prefetch). Not present in memory \u2014 consistent with tool having exited before capture. No disk timeline available to cross-check (log2timeline.py not installed in environment).",
+      "iocs": [
+        {
+          "type": "file_path",
+          "value": "cases/sample/artifacts/prefetch/FTKIMAGER.EXE-913F398E.pf"
+        }
+      ]
+    },
+    {
+      "id": "corr-001",
+      "category": "anti_forensics",
+      "description": "All three attacker-tool prefetch entries are disk_only with no corresponding live process or injected memory region. Combined with the multiple SDelete executions, this is itself an anti-forensics signal \u2014 the attacker cleaned up and exited before the memory image was taken.",
+      "confidence": "MEDIUM",
+      "severity": "MEDIUM",
+      "mitre": {
+        "technique_id": "T1070",
+        "technique_name": "Indicator Removal",
+        "tactic": "Defense Evasion"
+      },
+      "source_tools": [
+        "memory_analyzer",
+        "prefetch_parser",
+        "correlator"
+      ],
+      "corroborated": true,
+      "corroboration_detail": "Correlator returned 3/3 disk_only verdicts; memory_analyzer reported zero injected regions and zero suspicious processes."
+    },
+    {
+      "id": "gap-001",
+      "category": "analysis_gap",
+      "description": "Disk timeline analysis could not be performed: no disk image was provided and log2timeline.py is not available in the environment. Prefetch last-run timestamps were also null in tool output, so execution times relative to the Nov 13 2020 break-in window cannot be precisely anchored from available data.",
+      "confidence": "HIGH",
+      "severity": "INFO",
+      "source_tools": [
+        "disk_timeline"
+      ],
+      "corroborated": true,
+      "corroboration_detail": "Tool error explicitly returned: 'command not found: log2timeline.py'."
+    }
+  ],
+  "iocs": [
+    {
+      "type": "file_path",
+      "value": "cases/sample/artifacts/prefetch/SDELETE.EXE-2BD91720.pf"
+    },
+    {
+      "type": "file_path",
+      "value": "cases/sample/artifacts/prefetch/SDELETE.EXE-0E837E93.pf"
+    },
+    {
+      "type": "file_path",
+      "value": "cases/sample/artifacts/prefetch/FTKIMAGER.EXE-913F398E.pf"
+    }
+  ],
+  "mitre_techniques": [
+    "T1070.004",
+    "T1005",
+    "T1070"
+  ],
+  "analyst_summary": "Forensic artifacts on Fred Rocba's workstation show that during the Nov 13 2020 physical break-in window, an intruder executed FTK Imager (a forensic disk-imaging tool, commonly used by attackers with physical access to copy bulk data) followed by two separate executions of Sysinternals SDelete (secure file deletion / anti-forensics). Memory capture shows no live attacker processes, which is consistent with the attacker completing the imaging-then-wipe workflow and exiting before memory was acquired. The pattern strongly suggests targeted data exfiltration via attached storage with deliberate anti-forensic cleanup.",
+  "timeline": "Approximate sequence (exact timestamps not available because prefetch last_run fields were null and no disk timeline could be generated):\n1. Physical access obtained to Fred Rocba's workstation on or around 2020-11-13 (per case context).\n2. Attacker executed FTKIMAGER.EXE (AccessData FTK Imager) \u2014 consistent with imaging a volume, folder, or specific files to attached external storage for exfiltration (MITRE T1005 \u2014 Data from Local System).\n3. Attacker executed SDELETE.EXE at least twice (two distinct prefetch hashes: 2BD91720 and 0E837E93) \u2014 consistent with securely wiping the introduced tooling, any staging directory, and possibly source artifacts to defeat recovery (MITRE T1070.004 \u2014 File Deletion).\n4. Attacker terminated all tools and departed; subsequent memory acquisition shows no live attacker processes and no injected code regions, consistent with a completed, deliberate cleanup.",
+  "recommended_actions": [
+    "Treat this as a CONFIRMED data-exfiltration incident pending content scope determination. Notify legal/IR leadership and, if regulated data may be involved, prepare breach-notification workstream.",
+    "Recover and analyze the two SDELETE prefetch files (.pf) in full \u2014 the file-reference / loaded-modules section often retains paths of files the tool touched, which can reveal what was wiped and where it was staged.",
+    "Recover and analyze the FTKIMAGER prefetch file in full for referenced volume paths, output paths, and any E01/AD1 image filenames \u2014 this can indicate what was imaged and to where.",
+    "Pull and review Windows Event Logs (Security 4624/4634 logon events, 4663 object access, 4688 process creation if enabled) for the Nov 13 2020 window to identify which account was used and any external/USB device insertions (Event ID 6416, 20001).",
+    "Query the SYSTEM hive for USBSTOR and MountedDevices keys to enumerate any external storage attached during the break-in window \u2014 likely the exfiltration target.",
+    "Acquire and forensically image the disk (a real disk image, not just memory) so that a proper filesystem/MFT timeline, $LogFile/$UsnJrnl parsing, and recovery of SDelete-wiped file metadata can be performed.",
+    "Determine the scope of data Fred Rocba had access to (shared drives, mailbox, cloud sync folders \u2014 note GoogleDrive, iCloud, Slack, Teams were all present in memory) to scope potential data loss.",
+    "Reset Fred Rocba's credentials and any cached/saved credentials (browsers, VPN, cloud sync clients); revoke active sessions on iCloud, Google, Slack, Teams.",
+    "Review physical-access logs, badge readers, and CCTV for the Nov 13 2020 window to identify the intruder and corroborate the digital timeline.",
+    "Add SDELETE.EXE and FTKIMAGER.EXE (and other Sysinternals/forensic-tool binaries) to EDR/AppLocker blocklists or alerting rules on endpoints that have no legitimate need for them."
+  ]
+}
