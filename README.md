@@ -60,7 +60,7 @@ ARGUS connects Claude Opus to SIFT's 200+ forensics tools through a purpose-buil
 
 ```bash
 # 1. Clone the repo
-git clone https://github.com/YOUR_USERNAME/find-evil.git
+git clone https://github.com/kyisaiah47/find-evil.git
 cd find-evil
 
 # 2. Set your API key
@@ -78,15 +78,16 @@ chmod +x install.sh && ./install.sh
 source .venv/bin/activate
 export $(cat .env | xargs)
 
-python find_evil.py investigate \
-  --case-dir /cases/case001 \
-  --case-id CASE-001 \
-  --memory memory.raw \
-  --disk disk.dd \
-  --ntuser /mnt/disk/Users/victim/NTUSER.DAT \
-  --software /mnt/disk/Windows/System32/config/SOFTWARE \
-  --system /mnt/disk/Windows/System32/config/SYSTEM \
-  --prefetch /mnt/disk/Windows/Prefetch
+# Run against the included sample case (no additional data needed)
+python3 find_evil.py investigate \
+  --case-id ROCBA-2020 \
+  --case-dir cases/sample \
+  --memory cases/sample/Rocba-Memory.raw \
+  --ntuser cases/sample/artifacts/registry/NTUSER_fredr.DAT \
+  --software cases/sample/artifacts/registry/SOFTWARE \
+  --system cases/sample/artifacts/registry/SYSTEM \
+  --prefetch cases/sample/artifacts/prefetch \
+  --context "Fred Rocba case: physical break-in Nov 13 2020. Investigate for attacker tooling and data exfiltration."
 ```
 
 The agent runs autonomously, corroborates findings, and writes a report to `audit/reports/`.
