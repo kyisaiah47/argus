@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Find Evil — CLI entrypoint.
+ARGUS — CLI entrypoint.
 
 Usage:
   python find_evil.py investigate --case-dir /cases/case001 --memory memory.raw --disk disk.dd
