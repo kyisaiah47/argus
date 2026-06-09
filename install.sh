@@ -45,6 +45,16 @@ if [[ -z "${ANTHROPIC_API_KEY:-}" ]]; then
     echo "Set it with: export ANTHROPIC_API_KEY=sk-ant-..."
 fi
 
+# Install RegRipper 3.0
+echo ""
+if [ ! -f "regripper_src/rip.pl" ]; then
+    echo "Installing RegRipper 3.0..."
+    git clone --depth 1 https://github.com/keydet89/RegRipper3.0.git regripper_src
+    echo "✓ RegRipper installed"
+else
+    echo "✓ RegRipper already present"
+fi
+
 # Create virtualenv
 echo ""
 echo "Creating virtual environment..."
