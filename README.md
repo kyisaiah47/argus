@@ -1,62 +1,40 @@
-# ARGUS
+<div align="center">
 
-**Autonomous DFIR agent on the SANS SIFT Workstation — built for the Find Evil! hackathon.**
+<!-- BANNER_PLACEHOLDER -->
 
-ARGUS connects Claude Opus to SIFT's 200+ forensics tools through a purpose-built MCP server with typed, read-only functions. The agent investigates disk images and memory captures, corroborates every HIGH/CRITICAL finding with a second independent tool, and produces a structured incident report with full audit trail.
+# 🕵️ Find Evil
 
-## Architecture
+**Autonomous DFIR agent that never reports a finding without a second source to back it up**
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                       ARGUS Agent                           │
-│              (Claude Opus via Anthropic API)                │
-│                                                             │
-│  System prompt: senior analyst methodology                  │
-│  Self-correction loop: max 12 iterations                    │
-│  Corroboration engine: every finding verified independently │
-└──────────────────────┬──────────────────────────────────────┘
-                       │ MCP (typed function calls)
-                       │ NO raw shell access
-                       ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    ARGUS MCP Server                         │
-│           (read-only, typed tool wrappers)                  │
-│                                                             │
-│  analyze_memory()        → Volatility 3                     │
-│  analyze_disk_timeline() → log2timeline + psort             │
-│  analyze_persistence()   → regripper + prefetch             │
-│  correlate_findings()    → cross-source discrepancy engine  │
-│  score_severity()        → risk scoring + MITRE ATT&CK      │
-│  generate_incident_report() → structured .txt + .json       │
-└──────────────────────┬──────────────────────────────────────┘
-                       │ subprocess (read-only)
-                       ▼
-┌─────────────────────────────────────────────────────────────┐
-│              SANS SIFT Workstation                          │
-│                                                             │
-│  Volatility 3   log2timeline   psort   regripper   fls      │
-│  (200+ tools — agent has access only to what MCP exposes)   │
-└──────────────────────┬──────────────────────────────────────┘
-                       │
-                       ▼
-┌─────────────────────────────────────────────────────────────┐
-│                   Case Artifacts                            │
-│         (read-only mount — never modified)                  │
-│                                                             │
-│  memory.raw   disk.dd   NTUSER.DAT   SOFTWARE   SYSTEM      │
-└─────────────────────────────────────────────────────────────┘
-```
+![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![Claude](https://img.shields.io/badge/Claude-Opus-D4A017?style=for-the-badge&logo=anthropic&logoColor=white)
+![MCP](https://img.shields.io/badge/MCP-Server-6B46C1?style=for-the-badge&logoColor=white)
+![License](https://img.shields.io/badge/License-MIT-22C55E?style=for-the-badge)
 
-**Security boundary:** The MCP server exposes no shell access, no file write operations, and no destructive commands. The agent physically cannot spoliate evidence — this is enforced architecturally, not by prompt.
+</div>
 
-## Requirements
+<br/>
 
-- SANS SIFT Workstation (Ubuntu-based, x86-64 VM)
-- Python 3.10+
-- Anthropic API key
-- SIFT tools: `vol`, `log2timeline.py`, `psort.py`, `regripper`, `fls`
+ARGUS connects Claude Opus to SIFT's 200+ forensics tools through a purpose-built MCP server with typed, read-only functions. The agent investigates disk images and memory captures, corroborates every HIGH/CRITICAL finding with a second independent tool, and produces a structured incident report with a full audit trail — all without ever touching raw shell access or modifying evidence.
 
-## Installation
+## ✨ Features
+
+- **Corroboration engine** — every HIGH/CRITICAL finding is verified by a second independent tool before it appears in the report; unverified findings are labeled `UNVERIFIED`, never promoted to `CONFIRMED`
+- **Typed, read-only MCP layer** — no shell access, no file writes, no destructive commands; evidence spoliation is architecturally impossible, not just policy
+- **Self-correction loop** — up to 12 autonomous iterations with full iteration-by-iteration trace logged to `audit/iterations.jsonl`
+- **MITRE ATT&CK scoring** — every finding is risk-scored and mapped to ATT&CK techniques via the built-in `score_severity()` tool
+- **Full audit trail** — every tool call is recorded with timestamps and parameters in `audit/session_*.jsonl`, and each report finding links back to its originating `call_id`
+- **Dual output formats** — generates both a human-readable `.txt` incident report and a machine-readable `.json` findings + IOCs file
+
+## 🎥 Demo
+
+[![Watch Demo](https://img.shields.io/badge/YouTube-Watch%20Demo-FF0000?style=for-the-badge&logo=youtube&logoColor=white)](https://www.youtube.com/watch?v=_S4m4CGcdis)
+
+## 🛠️ Tech Stack
+
+SANS SIFT · Claude Opus (Anthropic API) · Model Context Protocol (MCP) · Volatility 3 · log2timeline · psort · regripper · Python 3.10+
+
+## 🚀 Getting Started
 
 ```bash
 # 1. Clone the repo
@@ -68,17 +46,11 @@ echo "ANTHROPIC_API_KEY=sk-ant-..." > .env
 
 # 3. Run the installer
 chmod +x install.sh && ./install.sh
-```
 
-## Usage
-
-### Autonomous agent (recommended)
-
-```bash
+# 4. Investigate a case
 source .venv/bin/activate
 export $(cat .env | xargs)
 
-# Run against the included sample case (no additional data needed)
 python3 find_evil.py investigate \
   --case-id ROCBA-2020 \
   --case-dir cases/sample \
@@ -90,58 +62,8 @@ python3 find_evil.py investigate \
   --context "Fred Rocba case: physical break-in Nov 13 2020. Investigate for attacker tooling and data exfiltration."
 ```
 
-The agent runs autonomously, corroborates findings, and writes a report to `audit/reports/`.
+Reports are written to `audit/reports/` on completion.
 
-### Claude Code (MCP mode)
-
-```bash
-# Register the MCP server with Claude Code
-claude mcp add find-evil -- $(pwd)/.venv/bin/python $(pwd)/find_evil.py mcp-server
-
-# Open Claude Code in the case directory
-claude
-```
-
-Claude Code will have access to all ARGUS tools and will follow the investigation methodology in `CLAUDE.md`.
-
-## Output
-
-```
-audit/
-├── session_20260607_143022.jsonl   ← every tool call with timestamps + params
-├── iterations.jsonl                ← iteration-by-iteration agent trace
-└── reports/
-    ├── CASE-001_20260607_143122.txt  ← human-readable incident report
-    └── CASE-001_20260607_143122.json ← machine-readable findings + IOCs
-```
-
-Every finding in the report links back to the specific tool call that produced it via `call_id`.
-
-## Self-Correction
-
-After every HIGH/CRITICAL finding, the corroboration engine runs a second independent Volatility plugin:
-
-| Finding | Primary | Corroboration |
-|---|---|---|
-| Process injection (malfind) | `windows.malfind` | `windows.dlllist` (RWX DLL paths) |
-| Suspicious process (pslist) | `windows.pslist` | `windows.pstree` (DKOM check) |
-| External connection (netscan) | `windows.netscan` | `windows.netstat` |
-| Registry persistence | `regripper:run` | Prefetch (was binary executed?) |
-
-Findings that fail corroboration are labeled `UNVERIFIED` in the final report — never promoted to CONFIRMED.
-
-## Tests
-
-```bash
-source .venv/bin/activate
-python -m pytest tests/ -v
-```
-
-10 unit tests covering parser logic with synthetic tool output. No SIFT tools required.
-
-## License
+## 📄 License
 
 MIT
-
-
-[![Watch Demo](https://img.shields.io/badge/YouTube-Watch%20Demo-FF0000?style=flat&logo=youtube&logoColor=white)](https://www.youtube.com/watch?v=_S4m4CGcdis)
