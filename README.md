@@ -38,8 +38,8 @@ SANS SIFT · Claude Opus (Anthropic API) · Model Context Protocol (MCP) · Vola
 
 ```bash
 # 1. Clone the repo
-git clone https://github.com/kyisaiah47/find-evil.git
-cd find-evil
+git clone https://github.com/kyisaiah47/argus.git
+cd argus
 
 # 2. Set your API key
 echo "ANTHROPIC_API_KEY=sk-ant-..." > .env
