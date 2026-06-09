@@ -24,6 +24,33 @@ from agent.report import generate_report
 MODEL = "claude-opus-4-7"
 MAX_ITERATIONS = 12
 AUDIT_DIR = Path(__file__).parent.parent / "audit"
+# Session log for this agent run — written here so all tool calls are captured
+# regardless of whether they go through the MCP server or are dispatched directly.
+_SESSION_LOG: Path | None = None
+
+
+def _get_session_log() -> Path:
+    global _SESSION_LOG
+    if _SESSION_LOG is None:
+        _SESSION_LOG = AUDIT_DIR / f"session_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.jsonl"
+    return _SESSION_LOG
+
+
+def _write_tool_record(call_id: str, tool: str, params: dict, duration_ms: int,
+                       findings_produced: list[str], error: str | None = None) -> None:
+    """Write a ToolCallRecord to the session JSONL so judges can trace every tool call."""
+    record = {
+        "call_id": call_id,
+        "tool": tool,
+        "params": params,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "duration_ms": duration_ms,
+        "findings_produced": findings_produced,
+        "error": error,
+    }
+    with open(_get_session_log(), "a") as f:
+        f.write(json.dumps(record) + "\n")
+
 
 SYSTEM_PROMPT = """You are an autonomous senior DFIR (Digital Forensics and Incident Response) analyst.
 Your goal: investigate case data, produce a structured incident report, and catch your own mistakes.
@@ -160,7 +187,18 @@ def _call_mcp_tool(tool_name: str, tool_input: dict, corroborate_engine: Corrobo
     import importlib
 
     if tool_name == "generate_incident_report":
-        return generate_report(tool_input, AUDIT_DIR)
+        import uuid as _uuid, time as _time2
+        _cid = str(_uuid.uuid4())[:12]
+        _t0 = _time2.time()
+        report_result = generate_report(tool_input, AUDIT_DIR)
+        _write_tool_record(
+            call_id=_cid,
+            tool="generate_incident_report",
+            params={"case_id": tool_input.get("case_id"), "finding_count": len(tool_input.get("all_findings", []))},
+            duration_ms=int((_time2.time() - _t0) * 1000),
+            findings_produced=[],
+        )
+        return report_result
 
     # Import server module and call the underlying tool functions
     from mcp_server.tools import memory as mem_tools
@@ -189,6 +227,13 @@ def _call_mcp_tool(tool_name: str, tool_input: dict, corroborate_engine: Corrobo
             injected_regions=injections,
             findings=all_findings,
         )
+        _write_tool_record(
+            call_id=call_id,
+            tool="analyze_memory",
+            params={"memory_image": memory_image},
+            duration_ms=int((_time.time() - t0) * 1000),
+            findings_produced=[f.id for f in all_findings],
+        )
         return result.model_dump()
 
     elif tool_name == "analyze_disk_timeline":
@@ -207,7 +252,16 @@ def _call_mcp_tool(tool_name: str, tool_input: dict, corroborate_engine: Corrobo
             else:
                 events, findings = disk_tools.extract_timeline_events(plaso_file, start_time, end_time)
         from mcp_server.models import DiskTimelineResult
-        return DiskTimelineResult(call_id=call_id, events=events[:500], findings=findings, tool_errors=errors).model_dump()
+        disk_result = DiskTimelineResult(call_id=call_id, events=events[:500], findings=findings, tool_errors=errors)
+        _write_tool_record(
+            call_id=call_id,
+            tool="analyze_disk_timeline",
+            params={"disk_image": disk_image, "start_time": start_time, "end_time": end_time},
+            duration_ms=int((_time.time() - t0) * 1000),
+            findings_produced=[f.id for f in findings],
+            error=errors[0] if errors else None,
+        )
+        return disk_result.model_dump()
 
     elif tool_name == "analyze_persistence":
         pf_entries, reg_findings_list, all_findings = [], [], []
@@ -223,7 +277,15 @@ def _call_mcp_tool(tool_name: str, tool_input: dict, corroborate_engine: Corrobo
                 rf, f = art_tools.run_regripper(hpath, plugins)
                 reg_findings_list.extend(rf); all_findings.extend(f)
         from mcp_server.models import ArtifactResult
-        return ArtifactResult(call_id=call_id, prefetch_entries=pf_entries, registry_findings=reg_findings_list, findings=all_findings).model_dump()
+        persist_result = ArtifactResult(call_id=call_id, prefetch_entries=pf_entries, registry_findings=reg_findings_list, findings=all_findings)
+        _write_tool_record(
+            call_id=call_id,
+            tool="analyze_persistence",
+            params={k: tool_input.get(k) for k in ("prefetch_dir", "ntuser_hive", "software_hive", "system_hive")},
+            duration_ms=int((_time.time() - t0) * 1000),
+            findings_produced=[f.id for f in all_findings],
+        )
+        return persist_result.model_dump()
 
     elif tool_name == "correlate_findings":
         from mcp_server.server import correlate_findings
@@ -265,8 +327,10 @@ def run_agent(case_description: str, case_dir: str) -> dict:
     ]
 
     AUDIT_DIR.mkdir(exist_ok=True)
+    session_log = _get_session_log()  # initialize now so the path is fixed for this run
     print(f"\n[find-evil] Starting investigation | case_dir={case_dir}", flush=True)
-    print(f"[find-evil] Audit log: {AUDIT_DIR}", flush=True)
+    print(f"[find-evil] Session log: {session_log}", flush=True)
+    print(f"[find-evil] Iterations log: {AUDIT_DIR / 'iterations.jsonl'}", flush=True)
     print(f"[find-evil] Max iterations: {MAX_ITERATIONS}\n", flush=True)
 
     iteration = 0
