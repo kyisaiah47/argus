@@ -64,6 +64,8 @@ python3 find_evil.py investigate \
 
 Reports are written to `audit/reports/` on completion.
 
+The full tool-execution audit trail is written to `audit/session_<timestamp>.jsonl` (one `ToolCallRecord` per tool call, including call_id, params, duration_ms, and the list of finding IDs produced). A per-iteration summary is also written to `audit/iterations.jsonl`. Both files are committed for the ROCBA-2020 sample run in this repo.
+
 ## 📄 License
 
 This project is released under the [MIT License](LICENSE).
