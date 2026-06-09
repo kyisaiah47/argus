@@ -1,0 +1,2 @@
+{"call_id":"f017c453-fe2","tool":"correlate_findings","params":{"memory_finding_count":0,"disk_finding_count":3},"timestamp":"2026-06-08T08:31:54.157054+00:00","duration_ms":0,"findings_produced":[],"error":null}
+{"call_id":"2fc06191-3fd","tool":"score_severity","params":{"finding_count":4},"timestamp":"2026-06-08T08:32:05.273358+00:00","duration_ms":0,"findings_produced":[],"error":null}

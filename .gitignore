@@ -5,6 +5,7 @@ __pycache__/
 *.pyo
 audit/reports/
 audit/*.jsonl
+!audit/session_20260608_*.jsonl
 *.plaso
 .env
 cases/sample/*.e01

@@ -66,4 +66,4 @@ Reports are written to `audit/reports/` on completion.
 
 ## 📄 License
 
-MIT
+This project is released under the [MIT License](LICENSE).
